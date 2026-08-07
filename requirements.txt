@@ -1,0 +1,41 @@
+fastapi==0.115.6
+uvicorn==0.34.0
+python-multipart
+opencv-python==4.10.0.84
+numpy==1.26.4
+scipy==1.13.0
+pillow==11.0.0
+matplotlib==3.9.0
+pandas==2.2.2
+deepface==0.0.93
+# DeepFace optional detector backend (recommended)
+mediapipe==0.10.14
+
+# Text & audio analyzers
+transformers==4.46.3
+torch==2.5.1
+soundfile==0.12.1
+audioread==3.0.1
+scikit-learn==1.5.2
+
+# Optional: librosa for advanced audio processing (not required for emotion detection)
+# librosa==0.10.2
+
+# TensorFlow backend used by DeepFace (recommended for some detector backends)
+tensorflow==2.18.0
+tf-keras>=2.18.0
+keras==3.8.0
+
+# Whisper SER runtime helpers
+huggingface-hub>=0.26.0
+safetensors>=0.4.5
+
+# Groq AI (wellness companion chatbot)
+groq>=0.12.0
+
+# OAuth / social login
+httpx>=0.27.0
+itsdangerous>=2.2.0
+
+# Rate limiting
+slowapi>=0.1.9

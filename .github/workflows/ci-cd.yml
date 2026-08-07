@@ -1,0 +1,170 @@
+name: TheraVox AI CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  # ── LINT STAGE ──
+  lint-backend:
+    name: Lint Backend (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Linting Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black isort
+      - name: Run Flake8
+        run: flake8 app/ --max-line-length=120 --ignore=E203,W503
+      - name: Check Formatting with Black
+        run: black --check app/
+      - name: Check Imports with Isort
+        run: isort --check-only app/
+
+  lint-frontend:
+    name: Lint Frontend (React/TS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+      - name: Install Frontend Dependencies
+        run: |
+          cd frontend
+          npm ci
+      - name: Run ESLint
+        run: |
+          cd frontend
+          npm run lint
+
+  # ── SECURITY STAGE ──
+  security-backend:
+    name: Security Scan Backend (Bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Bandit
+        run: pip install bandit
+      - name: Run Bandit Scan
+        run: bandit -r app/ -ll -ii
+
+  security-frontend:
+    name: Security Scan Frontend (NPM Audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run NPM Audit
+        run: |
+          cd frontend
+          npm audit --audit-level=high || true
+
+  # ── TEST STAGE ──
+  test-backend:
+    name: Pytest Backend Suite
+    runs-on: ubuntu-latest
+    needs: [lint-backend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-deploy.txt
+          pip install -r requirements-dev.txt
+      - name: Run Pytest with Coverage
+        run: |
+          pytest --cov=app --cov-report=xml --cov-report=term-missing tests/
+        env:
+          ENVIRONMENT: testing
+          JWT_SECRET_KEY: test-ci-secret-key-32-characters-minimum
+
+  test-frontend:
+    name: Vitest Frontend Suite
+    runs-on: ubuntu-latest
+    needs: [lint-frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+      - name: Install Dependencies
+        run: |
+          cd frontend
+          npm ci
+      - name: Run Vitest Unit & Integration Tests
+        run: |
+          cd frontend
+          npm test
+
+  # ── BUILD STAGE ──
+  build-frontend:
+    name: Build Frontend Bundle
+    runs-on: ubuntu-latest
+    needs: [test-frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Build Vite App
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+  build-backend-docker:
+    name: Build Backend Docker Image
+    runs-on: ubuntu-latest
+    needs: [test-backend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./dockerfile
+          push: false
+
+  # ── DEPLOY STAGE ──
+  deploy-staging:
+    name: Deploy to Staging (Render & Vercel)
+    runs-on: ubuntu-latest
+    needs: [build-frontend, build-backend-docker]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger Render Backend Deploy Webhook
+        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+      - name: Trigger Vercel Frontend Deploy Webhook
+        if: ${{ secrets.VERCEL_DEPLOY_HOOK_URL != '' }}
+        run: |
+          curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"

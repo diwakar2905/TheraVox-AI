@@ -1,0 +1,31 @@
+# ── Render.com Infrastructure-as-Code ──
+# Push this repo and connect via https://dashboard.render.com → New → Blueprint
+
+services:
+  # ── FastAPI backend web service ──
+  - type: web
+    name: theravox-ai-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: theravox-db
+          property: connectionURI
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: ENVIRONMENT
+        value: staging
+      - key: FRONTEND_URL
+        value: https://theravox-ai.vercel.app
+
+databases:
+  - name: theravox-db
+    plan: free
+    databaseName: theravox
+    postgresMajorVersion: "16"
