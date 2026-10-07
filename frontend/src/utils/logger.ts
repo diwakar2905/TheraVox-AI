@@ -6,7 +6,7 @@
 type LogLevel = 'info' | 'warn' | 'error';
 
 interface LogContext {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 class Logger {
@@ -16,7 +16,7 @@ class Logger {
     this.apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
   }
 
-  private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
+  private formatMessage(level: LogLevel, message: string): string {
     const timestamp = new Date().toISOString();
     return `[${timestamp}] [${level.toUpperCase()}] ${message}`;
   }
@@ -42,22 +42,22 @@ class Logger {
           keepalive: true,
         }).catch(() => {});
       }
-    } catch (e) {
+    } catch {
       // Ignore transport errors to prevent log feedback loop
     }
   }
 
   info(message: string, context?: LogContext) {
-    console.info(this.formatMessage('info', message, context), context || '');
+    console.info(this.formatMessage('info', message), context || '');
   }
 
   warn(message: string, context?: LogContext) {
-    console.warn(this.formatMessage('warn', message, context), context || '');
+    console.warn(this.formatMessage('warn', message), context || '');
     this.sendToBackend('warn', message, context);
   }
 
   error(message: string, context?: LogContext) {
-    console.error(this.formatMessage('error', message, context), context || '');
+    console.error(this.formatMessage('error', message), context || '');
     this.sendToBackend('error', message, context);
   }
 }

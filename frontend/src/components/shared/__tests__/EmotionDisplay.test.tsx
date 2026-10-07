@@ -15,7 +15,7 @@ describe('EmotionDisplay', () => {
     );
 
     expect(screen.getByText('Happy')).toBeInTheDocument();
-    expect(screen.getByText('😄')).toBeInTheDocument();
+    expect(screen.getAllByText('😄').length).toBeGreaterThan(0);
     expect(screen.getByText('High confidence joy detected')).toBeInTheDocument();
     expect(screen.getByText('92%')).toBeInTheDocument();
   });

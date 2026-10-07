@@ -6,6 +6,7 @@ POST /api/postcard  — Generate postcard data (quote, palette, patterns)
 """
 
 import random
+
 from fastapi import APIRouter
 
 from app.models.schemas import PostcardRequest, PostcardResponse
@@ -21,7 +22,10 @@ EMOTION_QUOTES: dict[str, list[dict[str, str]]] = {
         {"text": "Happiness is not something ready-made. It comes from your own actions.", "author": "Dalai Lama"},
         {"text": "The most wasted of days is one without laughter.", "author": "E.E. Cummings"},
         {"text": "Joy is the simplest form of gratitude.", "author": "Karl Barth"},
-        {"text": "Keep your face always toward the sunshine, and shadows will fall behind you.", "author": "Walt Whitman"},
+        {
+            "text": "Keep your face always toward the sunshine, and shadows will fall behind you.",
+            "author": "Walt Whitman",
+        },
         {"text": "The purpose of our lives is to be happy.", "author": "Dalai Lama"},
         {"text": "Happiness blooms from within.", "author": "TheraVox AI"},
     ],
@@ -34,17 +38,29 @@ EMOTION_QUOTES: dict[str, list[dict[str, str]]] = {
         {"text": "After every storm, the sun shows its face once more.", "author": "TheraVox AI"},
     ],
     "angry": [
-        {"text": "For every minute you remain angry, you give up sixty seconds of peace of mind.", "author": "Ralph Waldo Emerson"},
-        {"text": "Holding on to anger is like drinking poison and expecting the other person to die.", "author": "Buddha"},
+        {
+            "text": "For every minute you remain angry, you give up sixty seconds of peace of mind.",
+            "author": "Ralph Waldo Emerson",
+        },
+        {
+            "text": "Holding on to anger is like drinking poison and expecting the other person to die.",
+            "author": "Buddha",
+        },
         {"text": "The best fighter is never angry.", "author": "Lao Tzu"},
-        {"text": "Speak when you are angry and you will make the best speech you'll ever regret.", "author": "Ambrose Bierce"},
+        {
+            "text": "Speak when you are angry and you will make the best speech you'll ever regret.",
+            "author": "Ambrose Bierce",
+        },
         {"text": "Channel the fire within — let it forge, not consume.", "author": "TheraVox AI"},
         {"text": "Breathe. You are stronger than this moment.", "author": "TheraVox AI"},
     ],
     "surprise": [
         {"text": "The only way to make sense out of change is to plunge into it.", "author": "Alan Watts"},
         {"text": "Life is either a daring adventure or nothing at all.", "author": "Helen Keller"},
-        {"text": "The greatest glory in living lies not in never falling, but in rising every time we fall.", "author": "Nelson Mandela"},
+        {
+            "text": "The greatest glory in living lies not in never falling, but in rising every time we fall.",
+            "author": "Nelson Mandela",
+        },
         {"text": "Be curious, not judgmental.", "author": "Walt Whitman"},
         {"text": "Every moment holds the seed of wonder.", "author": "TheraVox AI"},
         {"text": "Surprise is the beginning of discovery.", "author": "TheraVox AI"},
@@ -52,7 +68,10 @@ EMOTION_QUOTES: dict[str, list[dict[str, str]]] = {
     "fear": [
         {"text": "Everything you've ever wanted is on the other side of fear.", "author": "George Addair"},
         {"text": "Courage is not the absence of fear, but the triumph over it.", "author": "Nelson Mandela"},
-        {"text": "You gain strength, courage, and confidence by every experience in which you stop to look fear in the face.", "author": "Eleanor Roosevelt"},
+        {
+            "text": "You gain strength, courage, and confidence by every experience in which you stop to look fear in the face.",
+            "author": "Eleanor Roosevelt",
+        },
         {"text": "Fear is a reaction. Courage is a decision.", "author": "Winston Churchill"},
         {"text": "The cave you fear to enter holds the treasure you seek.", "author": "Joseph Campbell"},
         {"text": "You are braver than you believe.", "author": "A.A. Milne"},
@@ -61,14 +80,23 @@ EMOTION_QUOTES: dict[str, list[dict[str, str]]] = {
         {"text": "In the middle of difficulty lies opportunity.", "author": "Albert Einstein"},
         {"text": "What we dislike in others often illuminates what we can grow in ourselves.", "author": "Carl Jung"},
         {"text": "Turn your wounds into wisdom.", "author": "Oprah Winfrey"},
-        {"text": "Not everything that is faced can be changed, but nothing can be changed until it is faced.", "author": "James Baldwin"},
+        {
+            "text": "Not everything that is faced can be changed, but nothing can be changed until it is faced.",
+            "author": "James Baldwin",
+        },
         {"text": "Let discomfort be the compass to your growth.", "author": "TheraVox AI"},
         {"text": "From the mud, the lotus blooms.", "author": "TheraVox AI"},
     ],
     "neutral": [
         {"text": "Be where you are, not where you think you should be.", "author": "TheraVox AI"},
-        {"text": "Almost everything will work again if you unplug it for a few minutes — including you.", "author": "Anne Lamott"},
-        {"text": "The present moment is filled with joy and happiness. If you are attentive, you will see it.", "author": "Thich Nhat Hanh"},
+        {
+            "text": "Almost everything will work again if you unplug it for a few minutes — including you.",
+            "author": "Anne Lamott",
+        },
+        {
+            "text": "The present moment is filled with joy and happiness. If you are attentive, you will see it.",
+            "author": "Thich Nhat Hanh",
+        },
         {"text": "Stillness is where creativity and solutions are found.", "author": "Eckhart Tolle"},
         {"text": "Peace is the result of retraining your mind to process life as it is.", "author": "Wayne Dyer"},
         {"text": "In stillness, you find yourself.", "author": "TheraVox AI"},
@@ -144,6 +172,7 @@ _FALLBACK_PALETTE = EMOTION_PALETTES["neutral"]
 # ---------------------------------------------------------------------------
 # POST /api/postcard
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "",

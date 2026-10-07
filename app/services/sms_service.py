@@ -3,11 +3,11 @@ Twilio SMS Service for Crisis Escalation.
 Dispatches urgent SMS alerts to registered emergency contacts during HIGH and CRITICAL severity events.
 """
 
-import os
 import logging
-from typing import Optional
+import os
 
 logger = logging.getLogger(__name__)
+
 
 class SMSService:
     """Twilio SMS Dispatcher."""
@@ -21,6 +21,7 @@ class SMSService:
         if self.account_sid and self.auth_token and self.from_phone:
             try:
                 from twilio.rest import Client
+
                 self._client = Client(self.account_sid, self.auth_token)
                 logger.info("✅ Twilio SMS Service initialized.")
             except ImportError:
@@ -39,16 +40,13 @@ class SMSService:
 
         if self._client and self.from_phone:
             try:
-                msg = self._client.messages.create(
-                    body=message_body,
-                    from_=self.from_phone,
-                    to=to_phone
-                )
+                msg = self._client.messages.create(body=message_body, from_=self.from_phone, to=to_phone)
                 logger.info(f"✅ Twilio SMS sent (SID: {msg.sid})")
                 return True
             except Exception as e:
                 logger.error(f"❌ Twilio SMS failed to send to {to_phone}: {e}")
                 return False
         return True
+
 
 sms_service = SMSService()

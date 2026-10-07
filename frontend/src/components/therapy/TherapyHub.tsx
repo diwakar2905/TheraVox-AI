@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, CheckCircle, Award, Play, Sparkles, Wind } from 'lucide-react';
+import { BookOpen, CheckCircle, Award, Play, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface Step {

@@ -3,7 +3,10 @@
 import logging
 import os
 import threading
-from typing import Tuple, Optional, Dict, List
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
+
+if TYPE_CHECKING:
+    import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,7 @@ def _get_np():
     global _np
     if _np is None:
         import numpy as np
+
         _np = np
     return _np
 
@@ -30,6 +34,7 @@ def _get_soundfile():
     if _SF_AVAILABLE is None:
         try:
             import soundfile as sf
+
             _sf = sf
             _SF_AVAILABLE = True
         except ImportError:
@@ -44,7 +49,8 @@ def _get_hf():
     if _HF_AVAILABLE is None:
         try:
             import torch
-            from transformers import AutoModelForAudioClassification, AutoFeatureExtractor
+            from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
+
             _torch = torch
             _AutoModelForAudioClassification = AutoModelForAudioClassification
             _AutoFeatureExtractor = AutoFeatureExtractor
@@ -56,7 +62,7 @@ def _get_hf():
     return _torch, _AutoModelForAudioClassification, _AutoFeatureExtractor, _HF_AVAILABLE
 
 
-def _resample_audio(audio: 'np.ndarray', orig_sr: int, target_sr: int) -> 'np.ndarray':
+def _resample_audio(audio: "np.ndarray", orig_sr: int, target_sr: int) -> "np.ndarray":
     """Resample audio – tries scipy sinc filter first, falls back to linear interpolation."""
     np = _get_np()
     if orig_sr == target_sr:
@@ -64,15 +70,17 @@ def _resample_audio(audio: 'np.ndarray', orig_sr: int, target_sr: int) -> 'np.nd
 
     # Prefer scipy for better anti-aliasing
     try:
-        from scipy.signal import resample_poly
         from math import gcd
+
+        from scipy.signal import resample_poly
+
         g = gcd(int(orig_sr), int(target_sr))
         return resample_poly(audio, target_sr // g, orig_sr // g).astype(np.float32)
     except Exception:
         pass
 
     # Linear-interpolation fallback (no extra deps)
-    duration      = len(audio) / orig_sr
+    duration = len(audio) / orig_sr
     target_length = int(duration * target_sr)
     if target_length == 0:
         return np.zeros(1, dtype=np.float32)
@@ -102,38 +110,38 @@ class AudioAnalyzerService:
     """
 
     _LABEL_MAP = {
-        'angry':    'angry',
-        'calm':     'neutral',
-        'disgust':  'disgust',
-        'fearful':  'fear',
-        'happy':    'happy',
-        'neutral':  'neutral',
-        'sad':      'sad',
-        'surprised':'surprise',
+        "angry": "angry",
+        "calm": "neutral",
+        "disgust": "disgust",
+        "fearful": "fear",
+        "happy": "happy",
+        "neutral": "neutral",
+        "sad": "sad",
+        "surprised": "surprise",
         # abbreviated labels (superb-style fallback)
-        'neu': 'neutral',
-        'hap': 'happy',
-        'ang': 'angry',
-        'exc': 'happy',
+        "neu": "neutral",
+        "hap": "happy",
+        "ang": "angry",
+        "exc": "happy",
         # generic full-word labels other models may emit
-        'fear':     'fear',
-        'surprise': 'surprise',
+        "fear": "fear",
+        "surprise": "surprise",
     }
 
     def __init__(self):
-        self.emotions = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
+        self.emotions = ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]
 
-        self._hf_model_id       = "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition"
-        self._hf_model          = None
-        self._hf_extractor      = None
+        self._hf_model_id = "ehcalabres/wav2vec2-lg-xlsr-en-speech-emotion-recognition"
+        self._hf_model = None
+        self._hf_extractor = None
         self._hf_id2label: Optional[Dict[int, str]] = None
-        self._model_loading     = False
+        self._model_loading = False
         self._model_load_failed = False
-        self._load_lock         = threading.Lock()
+        self._load_lock = threading.Lock()
 
-        self._silence_threshold = 0.005   # RMS below this → return neutral
-        self._target_rms        = 0.10    # Normalize all audio to this RMS level
-        self._preemphasis_coef  = 0.97   # Pre-emphasis filter coefficient
+        self._silence_threshold = 0.005  # RMS below this → return neutral
+        self._target_rms = 0.10  # Normalize all audio to this RMS level
+        self._preemphasis_coef = 0.97  # Pre-emphasis filter coefficient
 
     # ------------------------------------------------------------------ #
     #  HF model loading                                                   #
@@ -161,22 +169,23 @@ class AudioAnalyzerService:
         try:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+            # nosec B615: the model id comes from operator configuration, not user input
             try:
-                model     = AutoModelForAudioClassification.from_pretrained(
-                    self._hf_model_id, local_files_only=True)
-                extractor = AutoFeatureExtractor.from_pretrained(
-                    self._hf_model_id, local_files_only=True)
+                model = AutoModelForAudioClassification.from_pretrained(
+                    self._hf_model_id, local_files_only=True
+                )  # nosec B615
+                extractor = AutoFeatureExtractor.from_pretrained(self._hf_model_id, local_files_only=True)  # nosec B615
                 logger.info("Loaded audio model from local cache")
             except Exception:
                 logger.info(f"Downloading audio model: {self._hf_model_id}")
-                model     = AutoModelForAudioClassification.from_pretrained(self._hf_model_id)
-                extractor = AutoFeatureExtractor.from_pretrained(self._hf_model_id)
+                model = AutoModelForAudioClassification.from_pretrained(self._hf_model_id)  # nosec B615
+                extractor = AutoFeatureExtractor.from_pretrained(self._hf_model_id)  # nosec B615
 
             model.to(device).eval()
 
-            self._hf_model     = model
+            self._hf_model = model
             self._hf_extractor = extractor
-            self._hf_id2label  = getattr(model.config, "id2label", None)
+            self._hf_id2label = getattr(model.config, "id2label", None)
 
             logger.info(f"Audio SER model ready on {device}. Labels: {self._hf_id2label}")
             self._model_loading = False
@@ -185,16 +194,18 @@ class AudioAnalyzerService:
         except Exception as e:
             logger.warning(f"Failed to load HF audio model: {e}")
             self._model_load_failed = True
-            self._model_loading     = False
+            self._model_loading = False
             return False
 
     # ------------------------------------------------------------------ #
     #  Audio I/O                                                          #
     # ------------------------------------------------------------------ #
 
-    def _convert_with_ffmpeg(self, audio_path: str, target_sr: int = 16000) -> Optional[Tuple['np.ndarray', int]]:
+    def _convert_with_ffmpeg(self, audio_path: str, target_sr: int = 16000) -> Optional[Tuple["np.ndarray", int]]:
         """Convert audio to WAV via ffmpeg subprocess (handles WebM, MP4, MP3 …)."""
-        import subprocess, tempfile
+        import subprocess
+        import tempfile
+
         np = _get_np()
 
         # Resolve to absolute path and verify the file exists before passing
@@ -205,15 +216,22 @@ class AudioAnalyzerService:
             return None
 
         # mkstemp creates the file atomically; ffmpeg will overwrite it with -y.
-        fd, tmp_wav = tempfile.mkstemp(suffix='.wav')
+        fd, tmp_wav = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
         try:
             proc = subprocess.run(
                 [
-                    'ffmpeg', '-y', '-i', audio_path,
-                    '-ar', str(target_sr),
-                    '-ac', '1',
-                    '-f', 'wav', tmp_wav,
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    audio_path,
+                    "-ar",
+                    str(target_sr),
+                    "-ac",
+                    "1",
+                    "-f",
+                    "wav",
+                    tmp_wav,
                 ],
                 capture_output=True,
                 timeout=30,
@@ -224,7 +242,7 @@ class AudioAnalyzerService:
 
             sf, sf_available = _get_soundfile()
             if sf_available:
-                audio, sr = sf.read(tmp_wav, dtype='float32')
+                audio, sr = sf.read(tmp_wav, dtype="float32")
                 if audio.ndim > 1:
                     audio = np.mean(audio, axis=1)
                 return audio.astype(np.float32), sr
@@ -242,7 +260,7 @@ class AudioAnalyzerService:
             except Exception:
                 pass
 
-    def _load_audio(self, audio_path: str, target_sr: int = 16000) -> Optional[Tuple['np.ndarray', int]]:
+    def _load_audio(self, audio_path: str, target_sr: int = 16000) -> Optional[Tuple["np.ndarray", int]]:
         """Load audio file → (float32 mono array, sample_rate)."""
         np = _get_np()
         sf, sf_available = _get_soundfile()
@@ -250,7 +268,7 @@ class AudioAnalyzerService:
         # 1. soundfile (WAV, FLAC, OGG, AIFF …)
         if sf_available:
             try:
-                audio, sr = sf.read(audio_path, dtype='float32')
+                audio, sr = sf.read(audio_path, dtype="float32")
                 if audio.ndim > 1:
                     audio = np.mean(audio, axis=1)
                 if sr != target_sr:
@@ -262,18 +280,19 @@ class AudioAnalyzerService:
         # 2. stdlib wave (WAV-only, no deps)
         try:
             import wave as _wave
-            with _wave.open(audio_path, 'rb') as wf:
-                n_channels = wf.getnchannels()
-                sampwidth  = wf.getsampwidth()
-                orig_sr    = wf.getframerate()
-                raw        = wf.readframes(wf.getnframes())
 
-            if   sampwidth == 1:
+            with _wave.open(audio_path, "rb") as wf:
+                n_channels = wf.getnchannels()
+                sampwidth = wf.getsampwidth()
+                orig_sr = wf.getframerate()
+                raw = wf.readframes(wf.getnframes())
+
+            if sampwidth == 1:
                 audio = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
             elif sampwidth == 2:
-                audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32)  / 32768.0
+                audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
             elif sampwidth == 4:
-                audio = np.frombuffer(raw, dtype=np.int32).astype(np.float32)  / 2147483648.0
+                audio = np.frombuffer(raw, dtype=np.int32).astype(np.float32) / 2147483648.0
             else:
                 logger.warning(f"Unsupported WAV sample width: {sampwidth}")
                 return None
@@ -299,7 +318,7 @@ class AudioAnalyzerService:
     #  Audio preprocessing                                                #
     # ------------------------------------------------------------------ #
 
-    def _preprocess_audio(self, y: 'np.ndarray') -> 'np.ndarray':
+    def _preprocess_audio(self, y: "np.ndarray") -> "np.ndarray":
         """
         Normalize and apply pre-emphasis filter.
 
@@ -311,7 +330,7 @@ class AudioAnalyzerService:
         np = _get_np()
 
         # RMS normalization
-        rms = float(np.sqrt(np.mean(y ** 2)))
+        rms = float(np.sqrt(np.mean(y**2)))
         if rms > 1e-8:
             y = y * (self._target_rms / rms)
 
@@ -326,7 +345,7 @@ class AudioAnalyzerService:
     #  HF inference helpers                                               #
     # ------------------------------------------------------------------ #
 
-    def _infer_chunk(self, y: 'np.ndarray', sampling_rate: int) -> Tuple[str, float, Dict[str, float]]:
+    def _infer_chunk(self, y: "np.ndarray", sampling_rate: int) -> Tuple[str, float, Dict[str, float]]:
         """Run the HF model on a single audio chunk; return (emotion, confidence, all_scores).
 
         Temperature scaling (T=1.3) reduces overconfidence from RAVDESS-trained models
@@ -346,7 +365,7 @@ class AudioAnalyzerService:
         with torch.no_grad():
             logits = self._hf_model(**inputs).logits
             # Temperature scaling (T=1.3) to calibrate overconfident predictions
-            probs  = torch.softmax(logits / 1.3, dim=-1).squeeze(0)
+            probs = torch.softmax(logits / 1.3, dim=-1).squeeze(0)
 
         id2label = self._hf_id2label or {}
 
@@ -354,7 +373,7 @@ class AudioAnalyzerService:
         raw_scores: Dict[str, float] = {}
         for idx, prob in enumerate(probs.tolist()):
             raw_label = id2label.get(idx, str(idx)).lower()
-            mapped    = self._LABEL_MAP.get(raw_label, 'neutral')
+            mapped = self._LABEL_MAP.get(raw_label, "neutral")
             raw_scores[mapped] = raw_scores.get(mapped, 0.0) + prob
 
         # Normalize over the 7 canonical emotions
@@ -362,14 +381,14 @@ class AudioAnalyzerService:
         scores = {e: raw_scores.get(e, 0.0) / total for e in self.emotions}
 
         best_emotion = max(scores, key=scores.__getitem__)
-        confidence   = scores[best_emotion]
+        confidence = scores[best_emotion]
 
         logger.debug(f"chunk SER: {best_emotion} ({confidence:.3f}) | {scores}")
         return best_emotion, confidence, scores
 
     def _sliding_window_inference(
         self,
-        y: 'np.ndarray',
+        y: "np.ndarray",
         sampling_rate: int,
         window_size: int,
     ) -> Tuple[str, float, Dict[str, float]]:
@@ -384,7 +403,7 @@ class AudioAnalyzerService:
         # Accumulate full probability vectors (not just winner-takes-all)
         emotion_sums: Dict[str, float] = {e: 0.0 for e in self.emotions}
         window_count = 0
-        max_windows  = 8   # Cap at 8 windows (~20 s of audio with 2.5 s hop)
+        max_windows = 8  # Cap at 8 windows (~20 s of audio with 2.5 s hop)
 
         for start in range(0, len(y) - window_size + 1, hop_size):
             chunk = y[start : start + window_size]
@@ -396,8 +415,8 @@ class AudioAnalyzerService:
                 break
 
         if window_count == 0:
-            neutral_scores = {e: (1.0 if e == 'neutral' else 0.0) for e in self.emotions}
-            return 'neutral', 0.50, neutral_scores
+            neutral_scores = {e: (1.0 if e == "neutral" else 0.0) for e in self.emotions}
+            return "neutral", 0.50, neutral_scores
 
         # Average across windows then re-normalize
         avg_scores = {e: emotion_sums[e] / window_count for e in self.emotions}
@@ -405,12 +424,10 @@ class AudioAnalyzerService:
         avg_scores = {e: avg_scores[e] / total for e in self.emotions}
 
         best_emotion = max(avg_scores, key=avg_scores.__getitem__)
-        confidence   = min(avg_scores[best_emotion], 0.95)
+        confidence = min(avg_scores[best_emotion], 0.95)
         avg_scores[best_emotion] = confidence  # keep in sync
 
-        logger.debug(
-            f"Sliding-window ({window_count} chunks): {avg_scores} → {best_emotion} ({confidence:.3f})"
-        )
+        logger.debug(f"Sliding-window ({window_count} chunks): {avg_scores} → {best_emotion} ({confidence:.3f})")
         return best_emotion, confidence, avg_scores
 
     # ------------------------------------------------------------------ #
@@ -423,10 +440,10 @@ class AudioAnalyzerService:
             return None
 
         try:
-            np    = _get_np()
+            np = _get_np()
 
             sampling_rate = getattr(self._hf_extractor, "sampling_rate", 16000)
-            result        = self._load_audio(audio_path, target_sr=sampling_rate)
+            result = self._load_audio(audio_path, target_sr=sampling_rate)
             if result is None:
                 return None
 
@@ -435,14 +452,14 @@ class AudioAnalyzerService:
                 return None
 
             # Skip truly silent files
-            rms = float(np.sqrt(np.mean(y ** 2)))
+            rms = float(np.sqrt(np.mean(y**2)))
             if rms < self._silence_threshold:
                 logger.info("Audio is (near) silent – returning neutral")
-                silence_scores = {e: (0.60 if e == 'neutral' else 0.0) for e in self.emotions}
+                silence_scores = {e: (0.60 if e == "neutral" else 0.0) for e in self.emotions}
                 # Normalize
                 total = sum(silence_scores.values()) or 1.0
                 silence_scores = {e: v / total for e, v in silence_scores.items()}
-                return 'neutral', 0.60, silence_scores
+                return "neutral", 0.60, silence_scores
 
             # Normalize + pre-emphasis
             y = self._preprocess_audio(y)
@@ -487,40 +504,39 @@ class AudioAnalyzerService:
 
         result = self._load_audio(audio_path, target_sr=16000)
         if result is None:
-            return 'neutral', 0.50, _make_scores('neutral', 0.50)
+            return "neutral", 0.50, _make_scores("neutral", 0.50)
 
         y, sr = result
         if y is None or len(y) == 0:
-            return 'neutral', 0.50, _make_scores('neutral', 0.50)
+            return "neutral", 0.50, _make_scores("neutral", 0.50)
 
         try:
-            rms = float(np.sqrt(np.mean(y ** 2)))
+            rms = float(np.sqrt(np.mean(y**2)))
             if rms < self._silence_threshold:
-                scores = _make_scores('neutral', 0.60)
-                return 'neutral', 0.60, scores
+                scores = _make_scores("neutral", 0.60)
+                return "neutral", 0.60, scores
 
             # Zero-crossing rate
             zcr = float(np.sum(np.abs(np.diff(np.sign(y)))) / (2 * len(y)))
 
             # Spectral centroid
-            fft   = np.abs(np.fft.rfft(y))
+            fft = np.abs(np.fft.rfft(y))
             freqs = np.fft.rfftfreq(len(y), 1 / sr)
-            sc    = float(np.sum(freqs * fft) / (np.sum(fft) + 1e-10))
+            sc = float(np.sum(freqs * fft) / (np.sum(fft) + 1e-10))
 
             # Temporal energy variance (50 ms chunks)
             chunk = sr // 20
             if len(y) >= chunk * 4:
-                rms_chunks = [float(np.sqrt(np.mean(y[i:i+chunk] ** 2)))
-                              for i in range(0, len(y) - chunk, chunk)]
+                rms_chunks = [float(np.sqrt(np.mean(y[i : i + chunk] ** 2))) for i in range(0, len(y) - chunk, chunk)]
                 mean_e = float(np.mean(rms_chunks)) + 1e-10
-                ev     = float(np.var(rms_chunks)) / mean_e
+                ev = float(np.var(rms_chunks)) / mean_e
             else:
                 ev = 0.0
 
             # Normalise to [0, 1]
             rms_n = min(rms / 0.12, 1.0)
-            zcr_n = min(zcr * 6,    1.0)
-            sc_n  = min(sc / 3000,  1.0)
+            zcr_n = min(zcr * 6, 1.0)
+            sc_n = min(sc / 3000, 1.0)
 
             logger.debug(f"Acoustics – rms={rms_n:.2f} zcr={zcr_n:.2f} sc={sc_n:.2f} ev={ev:.3f}")
 
@@ -528,32 +544,32 @@ class AudioAnalyzerService:
 
             if rms_n > 0.75 and sc_n > 0.60 and zcr_n > 0.45:
                 conf = min(BASE + 0.20, 0.80)
-                return 'angry',    conf, _make_scores('angry',    conf)
+                return "angry", conf, _make_scores("angry", conf)
             if rms_n > 0.55 and sc_n > 0.65:
                 conf = min(BASE + 0.10 + (0.08 if ev > 0.08 else 0), 0.75)
-                return 'surprise', conf, _make_scores('surprise', conf)
+                return "surprise", conf, _make_scores("surprise", conf)
             if rms_n < 0.30 and sc_n < 0.40 and ev < 0.08:
                 conf = min(BASE + 0.15, 0.75)
-                return 'sad',      conf, _make_scores('sad',      conf)
+                return "sad", conf, _make_scores("sad", conf)
             if zcr_n > 0.50 and ev > 0.12 and 0.25 < rms_n < 0.60:
                 conf = min(BASE + 0.05, 0.65)
-                return 'fear',     conf, _make_scores('fear',     conf)
+                return "fear", conf, _make_scores("fear", conf)
             if 0.35 < rms_n < 0.75 and 0.30 < sc_n < 0.65 and ev > 0.05:
                 conf = min(BASE + 0.12, 0.75)
-                return 'happy',    conf, _make_scores('happy',    conf)
+                return "happy", conf, _make_scores("happy", conf)
             if 0.25 < rms_n < 0.45 and 0.25 < sc_n < 0.45 and ev < 0.10:
                 conf = min(BASE + 0.10, 0.72)
-                return 'neutral',  conf, _make_scores('neutral',  conf)
+                return "neutral", conf, _make_scores("neutral", conf)
 
             if rms_n > 0.50:
-                return 'happy',   BASE, _make_scores('happy',   BASE)
+                return "happy", BASE, _make_scores("happy", BASE)
             if rms_n > 0.25:
-                return 'neutral', BASE, _make_scores('neutral', BASE)
-            return 'sad', BASE - 0.05, _make_scores('sad', BASE - 0.05)
+                return "neutral", BASE, _make_scores("neutral", BASE)
+            return "sad", BASE - 0.05, _make_scores("sad", BASE - 0.05)
 
         except Exception as e:
             logger.error(f"Acoustic analysis failed: {e}")
-            return 'neutral', 0.50, _make_scores('neutral', 0.50)
+            return "neutral", 0.50, _make_scores("neutral", 0.50)
 
     # ------------------------------------------------------------------ #
     #  Public API                                                         #
@@ -569,9 +585,9 @@ class AudioAnalyzerService:
             - confidence: confidence in [0, 1]
             - scores:     dict mapping all 7 emotions to their probabilities (sums to ~1)
         """
-        fallback_scores: Dict[str, float] = {e: (1.0 if e == 'neutral' else 0.0) for e in self.emotions}
+        fallback_scores: Dict[str, float] = {e: (1.0 if e == "neutral" else 0.0) for e in self.emotions}
         if not audio_path or not os.path.exists(audio_path):
-            return 'neutral', 0.50, fallback_scores
+            return "neutral", 0.50, fallback_scores
 
         result = self._predict_with_hf(audio_path)
         if result is not None:
@@ -585,7 +601,7 @@ class AudioAnalyzerService:
 
     def get_status(self) -> Dict:
         _, _, _, hf_available = _get_hf()
-        _, sf_available       = _get_soundfile()
+        _, sf_available = _get_soundfile()
         device = None
         if self._hf_model is not None:
             try:
@@ -593,10 +609,10 @@ class AudioAnalyzerService:
             except Exception:
                 pass
         return {
-            "hf_libs_available":   hf_available,
-            "hf_model_id":         self._hf_model_id,
-            "hf_loaded":           self._hf_model is not None,
-            "device":              device,
+            "hf_libs_available": hf_available,
+            "hf_model_id": self._hf_model_id,
+            "hf_loaded": self._hf_model is not None,
+            "device": device,
             "soundfile_available": sf_available,
-            "emotions_supported":  self.emotions,
+            "emotions_supported": self.emotions,
         }

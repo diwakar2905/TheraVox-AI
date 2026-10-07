@@ -12,7 +12,8 @@ export default function NotificationSettings() {
   const handleEnablePush = async () => {
     const perm = await requestNotificationPermission();
     if (perm === 'granted') {
-      await saveSettings('20:00', true);
+      setEnabled(true);
+      await saveSettings(preferredTime, true);
     }
   };
 

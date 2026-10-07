@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import HTTPException, status
 import bcrypt
+from fastapi import HTTPException, status
 from jose import JWTError, jwt
 
 from app.core.config import get_settings
@@ -92,6 +92,7 @@ def verify_access_token(token: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Opaque refresh tokens
 # ---------------------------------------------------------------------------
+
 
 def create_refresh_token() -> tuple[str, str]:
     """

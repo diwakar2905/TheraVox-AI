@@ -2,7 +2,7 @@
 Therapeutic Programs Catalog & Progress Tracking Service.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 PROGRAMS_CATALOG = [
     {
@@ -99,6 +99,7 @@ PROGRAMS_CATALOG = [
     },
 ]
 
+
 class ProgramService:
     """Service handling therapeutic course catalog and user progress."""
 
@@ -110,5 +111,6 @@ class ProgramService:
             if p["id"] == program_id:
                 return p
         return None
+
 
 program_service = ProgramService()

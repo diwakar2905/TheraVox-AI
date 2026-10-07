@@ -7,27 +7,20 @@ export default function FocusTimer() {
   const [mode, setMode] = useState<'focus' | 'break'>('focus');
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((time) => time - 1);
-      }, 1000);
-    } else if (timeLeft === 0) {
-      // Switch modes automatically
-      if (mode === 'focus') {
-        setMode('break');
-        setTimeLeft(5 * 60); // 5 min break
-        setIsActive(false);
-      } else {
-        setMode('focus');
-        setTimeLeft(25 * 60); // back to 25 min focus
-        setIsActive(false);
-      }
-    }
-
+    if (!isActive) return;
+    const interval = setInterval(() => {
+      setTimeLeft((time) => time - 1);
+    }, 1000);
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, mode]);
+  }, [isActive]);
+
+  // Session finished: switch modes automatically (25 min focus <-> 5 min break)
+  if (timeLeft <= 0) {
+    const nextMode = mode === 'focus' ? 'break' : 'focus';
+    setMode(nextMode);
+    setTimeLeft(nextMode === 'focus' ? 25 * 60 : 5 * 60);
+    setIsActive(false);
+  }
 
   const toggleTimer = () => setIsActive(!isActive);
 

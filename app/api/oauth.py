@@ -163,7 +163,7 @@ async def _get_or_create_oauth_user(
     user = User(
         email=email.lower(),
         full_name=full_name.strip() or email.split("@")[0],
-        hashed_password=None,   # No password for OAuth accounts
+        hashed_password=None,  # No password for OAuth accounts
         oauth_provider=provider,
         oauth_id=oauth_id,
     )

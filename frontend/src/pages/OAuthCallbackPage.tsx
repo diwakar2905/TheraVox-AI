@@ -11,7 +11,7 @@
  *     link back to /login.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,7 +37,8 @@ export default function OAuthCallbackPage() {
   const [searchParams] = useSearchParams();
 
   const errorCode = searchParams.get('error');
-  const [authFailed, setAuthFailed] = useState(false);
+  // Refresh cookie didn't work (expired, invalid, etc.)
+  const authFailed = !errorCode && !isLoading && !isAuthenticated;
 
   useEffect(() => {
     // If the backend passed an error in the query string, show it immediately.
@@ -48,9 +49,6 @@ export default function OAuthCallbackPage() {
 
     if (isAuthenticated) {
       navigate('/', { replace: true });
-    } else {
-      // Refresh cookie didn't work (expired, invalid, etc.)
-      setAuthFailed(true);
     }
   }, [isLoading, isAuthenticated, navigate, errorCode]);
 

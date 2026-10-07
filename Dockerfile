@@ -29,12 +29,10 @@ COPY main.py alembic.ini ./
 COPY app/ ./app/
 COPY alembic/ ./alembic/
 
-# Copy pre-built frontend static files from stage 1
+# Committed static assets first, then the fresh frontend build on top so the
+# new index.html (and its hashed bundle references) wins
+COPY static/ ./static/
 COPY --from=frontend-build /app/static/ ./static/
-
-# Also copy any existing static assets (index.html, img, etc.)
-COPY static/index.html static/app.js static/styles.css ./static/
-COPY static/img/ ./static/img/
 
 # Create runtime directories
 RUN mkdir -p logs screenshots

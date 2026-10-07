@@ -3,12 +3,13 @@ PostHog Analytics Server-Side Integration for TheraVox AI
 Handles event logging with user anonymization and opt-out support.
 """
 
-import os
 import hashlib
 import logging
-from typing import Dict, Any, Optional
+import os
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class AnalyticsService:
     """Server-side PostHog telemetry service with user anonymization."""
@@ -22,6 +23,7 @@ class AnalyticsService:
         if self.api_key:
             try:
                 from posthog import Posthog
+
                 self._client = Posthog(project_api_key=self.api_key, host=self.host)
                 self._enabled = True
                 logger.info("✅ PostHog Analytics initialized.")
@@ -46,5 +48,6 @@ class AnalyticsService:
                 self._client.capture(distinct_id=distinct_id, event=event_name, properties=props)
             except Exception as e:
                 logger.warning(f"Failed to ship PostHog event {event_name}: {e}")
+
 
 analytics_service = AnalyticsService()

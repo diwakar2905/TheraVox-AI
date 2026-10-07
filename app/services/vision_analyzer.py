@@ -1,14 +1,14 @@
 """Vision-based emotion analysis service (face detection + emotion recognition)."""
 
 import logging
-from typing import List, Dict, Tuple
 from collections import deque
+from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
 # Lazy imports
 _cv2 = None
-_np  = None
+_np = None
 _DeepFace = None
 _DEEPFACE_AVAILABLE = None
 
@@ -17,6 +17,7 @@ def _get_cv2():
     global _cv2
     if _cv2 is None:
         import cv2
+
         _cv2 = cv2
     return _cv2
 
@@ -25,6 +26,7 @@ def _get_np():
     global _np
     if _np is None:
         import numpy as np
+
         _np = np
     return _np
 
@@ -34,6 +36,7 @@ def _get_deepface():
     if _DEEPFACE_AVAILABLE is None:
         try:
             from deepface import DeepFace
+
             _DeepFace = DeepFace
             _DEEPFACE_AVAILABLE = True
         except ImportError:
@@ -88,11 +91,11 @@ class EmotionSmoother:
                 averaged[emo] = averaged.get(emo, 0.0) + score
         n = len(self._history)
         if n == 0 or not averaged:
-            return 'neutral', 0.0
+            return "neutral", 0.0
         averaged = {k: v / n for k, v in averaged.items()}
 
         best_emotion = max(averaged, key=averaged.__getitem__)
-        confidence   = min(1.0, averaged[best_emotion])
+        confidence = min(1.0, averaged[best_emotion])
         return best_emotion, confidence
 
 
@@ -157,9 +160,9 @@ class VisionAnalyzerService:
         try:
             lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
             l_ch, a_ch, b_ch = cv2.split(lab)
-            clahe   = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            l_eq    = clahe.apply(l_ch)
-            frame   = cv2.cvtColor(cv2.merge([l_eq, a_ch, b_ch]), cv2.COLOR_LAB2BGR)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            l_eq = clahe.apply(l_ch)
+            frame = cv2.cvtColor(cv2.merge([l_eq, a_ch, b_ch]), cv2.COLOR_LAB2BGR)
         except Exception:
             pass  # use original frame if preprocessing fails
 

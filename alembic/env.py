@@ -14,10 +14,17 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import Base and all models so autogenerate can detect them
-from app.db.database import Base  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
+from app.db.database import Base, normalize_database_url  # noqa: E402
 import app.db.models  # noqa: E402, F401  — registers all ORM models on Base.metadata
 
 target_metadata = Base.metadata
+
+# Prefer DATABASE_URL from the environment / .env over the (empty) alembic.ini value
+_database_url = get_settings().get("database_url") or config.get_main_option("sqlalchemy.url")
+if not _database_url:
+    raise RuntimeError("DATABASE_URL is not set. Add it to your .env file before running migrations.")
+config.set_main_option("sqlalchemy.url", normalize_database_url(_database_url).replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
