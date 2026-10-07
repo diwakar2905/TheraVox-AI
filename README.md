@@ -126,44 +126,50 @@ graph TD
 ## ⚡ Quick Start
 
 ### Prerequisites
-- **Python 3.11+**
-- **Node.js 18+**
-- **PostgreSQL 16** (optional; in-memory SQLite fallback supported)
+- **Python 3.11 or 3.12** (TensorFlow/MediaPipe wheels are not available for 3.13 yet)
+- **Node.js 20.19+** (required by Vite 7) — only needed to rebuild or develop the frontend
+- **PostgreSQL 16** (optional; without `DATABASE_URL` development uses a local SQLite file)
 
-### 1️⃣ Clone & Backend Setup
+### 1️⃣ Backend (also serves the web UI)
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/TheraVox-AI.git
+git clone https://github.com/diwakar2905/TheraVox-AI.git
 cd TheraVox-AI
 
-# Create virtual environment
 python -m venv .venv
 source .venv/bin/activate        # macOS/Linux
 # .\.venv\Scripts\Activate.ps1   # Windows PowerShell
 
-# Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
-pip install -r requirements-dev.txt
 
-# Run migrations & start FastAPI application
-uvicorn main:app --reload --port 8000
+cp .env.example .env             # optional — add GROQ_API_KEY for the full AI companion
+python main.py
 ```
 
-### 2️⃣ Frontend Setup
+Open `http://localhost:8000`. No database or secrets are needed for local use: the app creates
+`theravox_dev.db` (SQLite) and a temporary JWT key, and logs a warning about each.
+
+### 2️⃣ Frontend dev server (optional, for live-reload while editing UI code)
 
 ```bash
 cd frontend
-
-# Install Node dependencies
 npm install
-
-# Start Vite development server
-npm run dev
+npm run dev                      # http://localhost:5173 (proxies /api to :8000)
 ```
 
-Visit `http://localhost:5173` to experience TheraVox AI!
+### 🎬 Preparing a demo
+
+```bash
+python scripts/warmup_models.py  # one-time: downloads text, speech and face models (needs internet)
+python main.py                   # start the app
+python scripts/demo_check.py     # in a second terminal: checks every feature end-to-end
+```
+
+- The AI companion uses Groq when `GROQ_API_KEY` is set (free key at https://console.groq.com);
+  without it, chat and session summaries use a built-in offline companion instead of failing.
+- Text and voice analysis fall back to lexicon/acoustic analysis if their models are not available.
+- Use Chrome or Edge for the Vision and Audio pages and allow camera/microphone access.
 
 ---
 

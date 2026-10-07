@@ -82,3 +82,34 @@ def test_spa_fallback_serves_index_but_not_for_api(client: AsyncClient):
         assert missing_api.status_code == 404
         assert missing_api.json() == {"detail": "Not Found"}
     asyncio.run(_test())
+
+
+def test_chat_works_offline_without_groq_key(client: AsyncClient, auth_headers: dict, monkeypatch):
+    """Without GROQ_API_KEY the companion answers with the offline fallback instead of erroring."""
+    from app.core.config import get_settings
+
+    monkeypatch.setitem(get_settings()._config, "groq_api_key", "")
+
+    async def _test():
+        response = await client.post(
+            "/api/chat",
+            json={"messages": [{"role": "user", "content": "I feel so stressed about my exams"}]},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["model"] == "offline-companion"
+        assert "breath" in data["reply"].lower()
+
+        session_id = data["session_id"]
+        summary = await client.post(f"/api/chat/sessions/{session_id}/summary", headers=auth_headers)
+        assert summary.status_code == 200
+        assert "stress" in summary.json()["key_themes"]
+    asyncio.run(_test())
+
+
+def test_offline_reply_points_to_crisis_resources():
+    from app.services.offline_companion import offline_reply
+
+    reply = offline_reply("I want to end it all", crisis_flagged=True)
+    assert "9152987821" in reply and "988" in reply
