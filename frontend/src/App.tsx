@@ -18,6 +18,7 @@ import ProfilePage from './pages/ProfilePage';
 import ChatPage from './pages/ChatPage';
 import ServicesPage from './pages/ServicesPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Animated wrapper for protected pages
 function AnimatedRoutes() {
@@ -42,6 +43,7 @@ function AnimatedRoutes() {
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </motion.div>
     </AnimatePresence>
@@ -51,7 +53,7 @@ function AnimatedRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           {/* Public auth routes — render full-page (no Layout) */}
           <Route path="/login" element={<LoginPage />} />

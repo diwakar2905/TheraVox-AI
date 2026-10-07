@@ -211,7 +211,9 @@ async def login(
     response_model=TokenResponse,
     summary="Rotate refresh token and issue new access token",
 )
-@limiter.limit("10/minute")
+# Called on every full page load to restore the session, so the limit must allow
+# normal browsing (and users sharing an IP); the opaque token is not brute-forceable.
+@limiter.limit("60/minute")
 async def refresh(
     request: Request,
     response: Response,
