@@ -2,12 +2,13 @@
 Therapeutic Programs Endpoints.
 """
 
-import uuid
 import json
+import uuid
 from datetime import datetime, timezone
+from typing import Any, Dict, List
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,8 +18,10 @@ from app.services.program_service import program_service
 
 router = APIRouter(prefix="/programs", tags=["programs"])
 
+
 class CompleteStepPayload(BaseModel):
     step_id: str
+
 
 @router.get("", response_model=List[Dict[str, Any]])
 async def list_programs(
@@ -27,10 +30,8 @@ async def list_programs(
 ):
     """List available therapeutic programs with user enrollment status."""
     catalog = program_service.get_catalog()
-    
-    result = await db.execute(
-        select(ProgramEnrollmentDB).where(ProgramEnrollmentDB.user_id == current_user.id)
-    )
+
+    result = await db.execute(select(ProgramEnrollmentDB).where(ProgramEnrollmentDB.user_id == current_user.id))
     enrollments = {e.program_id: e for e in result.scalars().all()}
 
     output = []
@@ -54,6 +55,7 @@ async def list_programs(
 
     return output
 
+
 @router.post("/{program_id}/enroll")
 async def enroll_program(
     program_id: str,
@@ -67,8 +69,7 @@ async def enroll_program(
 
     result = await db.execute(
         select(ProgramEnrollmentDB).where(
-            ProgramEnrollmentDB.user_id == current_user.id,
-            ProgramEnrollmentDB.program_id == program_id
+            ProgramEnrollmentDB.user_id == current_user.id, ProgramEnrollmentDB.program_id == program_id
         )
     )
     enr = result.scalar_one_or_none()
@@ -85,6 +86,7 @@ async def enroll_program(
 
     return {"status": "enrolled", "program_id": program_id}
 
+
 @router.post("/{program_id}/complete-step")
 async def complete_program_step(
     program_id: str,
@@ -99,8 +101,7 @@ async def complete_program_step(
 
     result = await db.execute(
         select(ProgramEnrollmentDB).where(
-            ProgramEnrollmentDB.user_id == current_user.id,
-            ProgramEnrollmentDB.program_id == program_id
+            ProgramEnrollmentDB.user_id == current_user.id, ProgramEnrollmentDB.program_id == program_id
         )
     )
     enr = result.scalar_one_or_none()

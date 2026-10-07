@@ -20,6 +20,7 @@ router = APIRouter(prefix="/api/wellness", tags=["wellness"])
 # POST /api/wellness/entries
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/entries",
     response_model=WellnessEntryResponse,
@@ -47,6 +48,7 @@ async def create_wellness_entry(
 # ---------------------------------------------------------------------------
 # GET /api/wellness/entries
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/entries",

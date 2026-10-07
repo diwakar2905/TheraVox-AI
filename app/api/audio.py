@@ -1,26 +1,24 @@
 """Audio emotion analysis API endpoints."""
 
+import asyncio
+import logging
 import os
 import uuid
-import logging
-import asyncio
-from fastapi import APIRouter, UploadFile, File, Depends
+
+from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.api.dependencies import get_audio_analyzer
+from app.models.schemas import AudioStatusResponse, EmotionResponse
 from app.services import AudioAnalyzerService
-from app.models.schemas import EmotionResponse, AudioStatusResponse
-from app.utils.emotion_utils import get_emotion_emoji, get_emotion_description
+from app.utils.emotion_utils import get_emotion_description, get_emotion_emoji
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.post("/analyze_audio", response_model=EmotionResponse)
-async def analyze_audio(
-    file: UploadFile = File(...),
-    analyzer: AudioAnalyzerService = Depends(get_audio_analyzer)
-):
+async def analyze_audio(file: UploadFile = File(...), analyzer: AudioAnalyzerService = Depends(get_audio_analyzer)):
     """Analyze audio file for emotion."""
     # Build a unique temp path so concurrent requests never collide.
     os.makedirs("logs", exist_ok=True)
@@ -42,7 +40,7 @@ async def analyze_audio(
             file_path,
         )
 
-        emoji       = get_emotion_emoji(emotion)
+        emoji = get_emotion_emoji(emotion)
         description = get_emotion_description(emotion, confidence)
 
         return EmotionResponse(
@@ -69,9 +67,7 @@ async def analyze_audio(
 
 
 @router.get("/audio_status", response_model=AudioStatusResponse)
-async def audio_status(
-    analyzer: AudioAnalyzerService = Depends(get_audio_analyzer)
-):
+async def audio_status(analyzer: AudioAnalyzerService = Depends(get_audio_analyzer)):
     """Get audio analyzer runtime status."""
     try:
         status = analyzer.get_status()

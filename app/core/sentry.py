@@ -2,11 +2,12 @@
 Sentry Error Tracking Integration for TheraVox AI Backend
 """
 
-import os
 import logging
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
 
 def init_sentry(dsn: Optional[str] = None, environment: str = "development") -> bool:
     """
@@ -16,13 +17,13 @@ def init_sentry(dsn: Optional[str] = None, environment: str = "development") -> 
     if not sentry_dsn:
         logger.info("ℹ️ SENTRY_DSN not configured. Skipping Sentry initialization.")
         return False
-        
+
     try:
         import sentry_sdk
         from sentry_sdk.integrations.fastapi import FastApiIntegration
-        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
         from sentry_sdk.integrations.logging import LoggingIntegration
-        
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
         sentry_sdk.init(
             dsn=sentry_dsn,
             environment=environment,

@@ -21,6 +21,7 @@ router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 # POST /api/feedback
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "",
     response_model=FeedbackResponse,
@@ -60,6 +61,7 @@ async def submit_feedback(
 # GET /api/feedback
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "",
     response_model=list[FeedbackResponse],
@@ -69,10 +71,6 @@ async def list_feedback(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[FeedbackResponse]:
-    q = (
-        select(Feedback)
-        .where(Feedback.user_id == current_user.id)
-        .order_by(Feedback.created_at.desc())
-    )
+    q = select(Feedback).where(Feedback.user_id == current_user.id).order_by(Feedback.created_at.desc())
     result = await db.execute(q)
     return [FeedbackResponse.model_validate(f) for f in result.scalars().all()]

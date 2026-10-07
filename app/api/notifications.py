@@ -3,8 +3,9 @@ Push Notifications Subscription & Settings Endpoints.
 """
 
 import uuid
-from pydantic import BaseModel
+
 from fastapi import APIRouter, Depends, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,14 +14,17 @@ from app.db.models import PushSubscriptionDB, User
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
+
 class SubscriptionPayload(BaseModel):
     endpoint: str
     keys: dict
     preferred_time: str = "20:00"
 
+
 class SettingsPayload(BaseModel):
     preferred_time: str
     is_active: bool = True
+
 
 @router.post("/subscribe", status_code=status.HTTP_201_CREATED)
 async def subscribe_push(
@@ -29,9 +33,7 @@ async def subscribe_push(
     db: AsyncSession = Depends(get_db),
 ):
     """Register or update Web Push subscription endpoint."""
-    result = await db.execute(
-        select(PushSubscriptionDB).where(PushSubscriptionDB.endpoint == payload.endpoint)
-    )
+    result = await db.execute(select(PushSubscriptionDB).where(PushSubscriptionDB.endpoint == payload.endpoint))
     sub = result.scalar_one_or_none()
 
     if not sub:
@@ -52,6 +54,7 @@ async def subscribe_push(
     await db.commit()
     return {"status": "subscribed", "preferred_time": sub.preferred_time}
 
+
 @router.patch("/settings")
 async def update_notification_settings(
     payload: SettingsPayload,
@@ -59,9 +62,7 @@ async def update_notification_settings(
     db: AsyncSession = Depends(get_db),
 ):
     """Update preferred notification check-in time."""
-    result = await db.execute(
-        select(PushSubscriptionDB).where(PushSubscriptionDB.user_id == current_user.id)
-    )
+    result = await db.execute(select(PushSubscriptionDB).where(PushSubscriptionDB.user_id == current_user.id))
     subs = result.scalars().all()
     for s in subs:
         s.preferred_time = payload.preferred_time

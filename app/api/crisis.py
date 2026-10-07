@@ -66,8 +66,7 @@ async def _persist_alert(
 ) -> CrisisAlert:
     """Save a crisis alert to the database and return the ORM instance."""
     signals_data = [
-        {"phrase": s.phrase, "category": s.category, "severity": s.severity.value}
-        for s in assessment.signals
+        {"phrase": s.phrase, "category": s.category, "severity": s.severity.value} for s in assessment.signals
     ]
     alert = CrisisAlert(
         user_id=user_id,
@@ -130,6 +129,7 @@ async def scan_text(
         # Fire-and-forget escalation email for HIGH / CRITICAL
         if assessment.severity.value in ("high", "critical"):
             from app.services.crisis_escalation import fire_escalation_async
+
             fire_escalation_async(current_user, assessment)
 
     return _assessment_to_response(assessment)
@@ -151,9 +151,7 @@ async def list_alerts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CrisisAlertListResponse:
-    total_result = await db.execute(
-        select(func.count(CrisisAlert.id)).where(CrisisAlert.user_id == current_user.id)
-    )
+    total_result = await db.execute(select(func.count(CrisisAlert.id)).where(CrisisAlert.user_id == current_user.id))
     total = total_result.scalar() or 0
 
     result = await db.execute(
@@ -240,5 +238,3 @@ async def get_resources(
     detector: CrisisDetectorService = Depends(get_crisis_detector),
 ):
     return {"resources": detector.resources}
-
-

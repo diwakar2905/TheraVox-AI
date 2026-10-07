@@ -3,12 +3,12 @@ Web Push Notification & Background Scheduler Service.
 Uses APScheduler to dispatch daily check-in reminders according to user preferences.
 """
 
-import os
 import logging
-import asyncio
-from typing import Optional, Dict, Any
+import os
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
+
 
 class NotificationService:
     """Web Push & Scheduler Service."""
@@ -22,6 +22,7 @@ class NotificationService:
         """Initialize APScheduler cron for daily notifications."""
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
             self._scheduler = AsyncIOScheduler()
             # Run daily notification dispatcher every hour to check user schedule matching
             self._scheduler.add_job(self._dispatch_hourly_checkins, "cron", minute=0)
@@ -45,18 +46,21 @@ class NotificationService:
             return True
 
         try:
-            from pywebpush import webpush
             import json
+
+            from pywebpush import webpush
+
             webpush(
                 subscription_info=subscription_info,
                 data=json.dumps(payload),
                 vapid_private_key=self.vapid_private_key,
-                vapid_claims=self.vapid_claims
+                vapid_claims=self.vapid_claims,
             )
             logger.info("✅ Web Push successfully delivered.")
             return True
         except Exception as e:
             logger.warning(f"⚠️ Web Push delivery failed: {e}")
             return False
+
 
 notification_service = NotificationService()

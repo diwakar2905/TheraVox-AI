@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.database import get_session_factory
-from app.services import TextAnalyzerService, AudioAnalyzerService, VisionAnalyzerService
+from app.services import AudioAnalyzerService, TextAnalyzerService, VisionAnalyzerService
 from app.services.crisis_detector import CrisisDetectorService
 
 _bearer_scheme = HTTPBearer(auto_error=True)

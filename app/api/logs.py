@@ -4,12 +4,14 @@ Receives log payloads from frontend clients for centralized log aggregation.
 """
 
 import logging
+from typing import Any, Dict, Optional
+
 from fastapi import APIRouter, Body
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
 
 router = APIRouter(prefix="/logs", tags=["Logs"])
 logger = logging.getLogger("theravox.client")
+
 
 class LogPayload(BaseModel):
     level: str = Field(..., description="Log level: info, warn, error")
@@ -17,6 +19,7 @@ class LogPayload(BaseModel):
     timestamp: Optional[str] = None
     user_id: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
+
 
 @router.post("")
 async def receive_client_log(payload: LogPayload = Body(...)):
@@ -27,12 +30,12 @@ async def receive_client_log(payload: LogPayload = Body(...)):
         "user_id": payload.user_id,
         "context": payload.context,
     }
-    
+
     if level == "error":
         logger.error(f"[CLIENT] {payload.message}", extra=extra_data)
     elif level == "warn" or level == "warning":
         logger.warning(f"[CLIENT] {payload.message}", extra=extra_data)
     else:
         logger.info(f"[CLIENT] {payload.message}", extra=extra_data)
-        
+
     return {"status": "success", "received": True}

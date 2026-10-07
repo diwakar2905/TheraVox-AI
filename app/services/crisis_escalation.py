@@ -59,16 +59,15 @@ async def send_crisis_escalation_email(
     signals_html = ""
     for s in signals:
         signals_html += (
-            f'<tr>'
+            f"<tr>"
             f'<td style="padding:6px 12px;border-bottom:1px solid #f0ebe4;">{escape(s.get("phrase",""))}</td>'
             f'<td style="padding:6px 12px;border-bottom:1px solid #f0ebe4;">{escape(s.get("category",""))}</td>'
             f'<td style="padding:6px 12px;border-bottom:1px solid #f0ebe4;">{escape(s.get("severity",""))}</td>'
-            f'</tr>'
+            f"</tr>"
         )
 
     signals_text = "\n".join(
-        f"  - [{s.get('severity','')}] {s.get('category','')}: \"{s.get('phrase','')}\""
-        for s in signals
+        f"  - [{s.get('severity','')}] {s.get('category','')}: \"{s.get('phrase','')}\"" for s in signals
     )
 
     email_subject = f"🚨 [{severity_upper}] Crisis Alert — {user_name}"
@@ -156,17 +155,18 @@ def fire_escalation_async(user: object, assessment: object) -> None:
     Fire-and-forget helper: schedule ``send_crisis_escalation_email`` and SMS dispatcher.
     """
     import asyncio
+
     from app.services.sms_service import sms_service
 
     severity = getattr(getattr(assessment, "severity", None), "value", "high")
     user_name = getattr(user, "full_name", "User")
-    
+
     # Trigger SMS dispatch
     sms_service.send_crisis_sms(
         to_phone=getattr(user, "phone", "+15550199"),
         contact_name="Emergency Contact",
         user_name=user_name,
-        severity=severity
+        severity=severity,
     )
 
     try:

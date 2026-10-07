@@ -15,16 +15,17 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select, func as sql_func
+from sqlalchemy import func as sql_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_db
 from app.auth.utils import (
     create_access_token,
     create_refresh_token,
+    hash_password,
     hash_refresh_token,
     verify_password,
-    hash_password,
 )
 from app.core.config import get_settings
 from app.core.constants import COOKIE_NAME, COOKIE_PATH, COOKIE_SAMESITE
@@ -41,6 +42,7 @@ from app.models.schemas import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
 
 def _set_refresh_cookie(response: Response, raw_token: str, expires_at: datetime) -> None:
     """Set the httpOnly refresh token cookie on the response."""
@@ -94,6 +96,7 @@ async def _issue_refresh_token(
 # POST /api/auth/register
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/register",
     response_model=TokenResponse,
@@ -136,6 +139,7 @@ async def register(
 # ---------------------------------------------------------------------------
 # POST /api/auth/login
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "/login",
@@ -201,6 +205,7 @@ async def login(
 # POST /api/auth/refresh
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/refresh",
     response_model=TokenResponse,
@@ -221,9 +226,7 @@ async def refresh(
 
     token_hash = hash_refresh_token(theravox_refresh)
 
-    result = await db.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-    )
+    result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
     rt: RefreshToken | None = result.scalar_one_or_none()
 
     if rt is None or not rt.is_valid:
@@ -261,6 +264,7 @@ async def refresh(
 # POST /api/auth/logout
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -275,9 +279,7 @@ async def logout(
 ) -> None:
     if theravox_refresh:
         token_hash = hash_refresh_token(theravox_refresh)
-        result = await db.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-        )
+        result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
         rt: RefreshToken | None = result.scalar_one_or_none()
         if rt and not rt.revoked:
             rt.revoked = True
@@ -288,6 +290,7 @@ async def logout(
 # ---------------------------------------------------------------------------
 # GET /api/auth/me
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/me",
@@ -302,6 +305,7 @@ async def me(request: Request, current_user: User = Depends(get_current_user)) -
 # ---------------------------------------------------------------------------
 # PATCH /api/auth/me
 # ---------------------------------------------------------------------------
+
 
 @router.patch(
     "/me",
@@ -318,9 +322,7 @@ async def update_profile(
     if body.email is not None:
         new_email = body.email.lower()
         if new_email != current_user.email:
-            existing = await db.execute(
-                select(User).where(User.email == new_email)
-            )
+            existing = await db.execute(select(User).where(User.email == new_email))
             if existing.scalar_one_or_none() is not None:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -333,6 +335,7 @@ async def update_profile(
 # ---------------------------------------------------------------------------
 # POST /api/auth/me/password
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "/me/password",
@@ -361,6 +364,7 @@ async def change_password(
 # GET /api/auth/me/stats
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "/me/stats",
     response_model=AccountStatsResponse,
@@ -370,11 +374,7 @@ async def get_account_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AccountStatsResponse:
-    result = await db.execute(
-        select(sql_func.count(WellnessEntry.id)).where(
-            WellnessEntry.user_id == current_user.id
-        )
-    )
+    result = await db.execute(select(sql_func.count(WellnessEntry.id)).where(WellnessEntry.user_id == current_user.id))
     count: int = result.scalar_one()
     return AccountStatsResponse(
         wellness_entries_count=count,
@@ -388,6 +388,7 @@ async def get_account_stats(
 
 _last_export_times: dict[uuid.UUID, datetime] = {}
 
+
 @router.get(
     "/me/data",
     summary="Download user data as a ZIP archive (rate limited to once per 24 hours)",
@@ -397,7 +398,7 @@ async def download_user_data(
     current_user: User = Depends(get_current_user),
 ):
     from app.services.export_service import generate_user_data_export_zip
-    
+
     now = datetime.now(timezone.utc)
     last_export = _last_export_times.get(current_user.id)
     if last_export and (now - last_export).total_seconds() < 86400:
@@ -408,7 +409,7 @@ async def download_user_data(
 
     zip_bytes = await generate_user_data_export_zip(current_user, db)
     _last_export_times[current_user.id] = now
-    
+
     filename = f"theravox_export_{current_user.id}_{int(now.timestamp())}.zip"
     return Response(
         content=zip_bytes,

@@ -7,14 +7,16 @@ import io
 import json
 import zipfile
 from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import User, WellnessEntry, ChatSession, ChatMessageDB, CrisisAlert, Feedback
+from app.db.models import ChatMessageDB, ChatSession, CrisisAlert, Feedback, User, WellnessEntry
+
 
 async def generate_user_data_export_zip(user: User, db: AsyncSession) -> bytes:
     """Generate in-memory ZIP file containing all user data in JSON format."""
-    
+
     # 1. Profile Data
     profile_data = {
         "id": str(user.id),
@@ -53,12 +55,14 @@ async def generate_user_data_export_zip(user: User, db: AsyncSession) -> bytes:
             }
             for m in res_msg.scalars().all()
         ]
-        chat_sessions.append({
-            "id": str(s.id),
-            "title": s.title,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-            "messages": msgs,
-        })
+        chat_sessions.append(
+            {
+                "id": str(s.id),
+                "title": s.title,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "messages": msgs,
+            }
+        )
 
     # 4. Crisis Alerts
     res_crisis = await db.execute(select(CrisisAlert).where(CrisisAlert.user_id == user.id))

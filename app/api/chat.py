@@ -25,7 +25,6 @@ from app.db.models import ChatMessageDB, ChatSession, CrisisAlert, SessionSummar
 from app.models.schemas import (
     ChatMessageResponse,
     ChatRequest,
-    ChatResponse,
     ChatSessionDetail,
     ChatSessionResponse,
     SessionSummaryResponse,
@@ -40,9 +39,9 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 # Constants
 # ---------------------------------------------------------------------------
 
-_TITLE_MAX_LEN = 100       # max characters in a session title column
-_TITLE_ELLIPSIS_AT = 97    # truncate here and append ellipsis
-_PREVIEW_MAX_LEN = 120     # max characters for the session list preview
+_TITLE_MAX_LEN = 100  # max characters in a session title column
+_TITLE_ELLIPSIS_AT = 97  # truncate here and append ellipsis
+_PREVIEW_MAX_LEN = 120  # max characters for the session list preview
 _TRANSCRIPT_MAX_CHARS = 12_000  # ~3000 tokens, keeps Groq context manageable
 
 # ---------------------------------------------------------------------------
@@ -100,6 +99,7 @@ def _make_title(first_user_message: str) -> str:
 # ---------------------------------------------------------------------------
 # POST /api/chat — send a message, persist to DB, return reply + session_id
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "",
@@ -211,22 +211,27 @@ async def chat(
         crisis_data = crisis_assessment.to_dict()
         # Persist alert
         signals_json_str = json.dumps(
-            [{"phrase": s.phrase, "category": s.category, "severity": s.severity.value}
-             for s in crisis_assessment.signals]
+            [
+                {"phrase": s.phrase, "category": s.category, "severity": s.severity.value}
+                for s in crisis_assessment.signals
+            ]
         )
-        db.add(CrisisAlert(
-            user_id=current_user.id,
-            severity=crisis_assessment.severity.value,
-            source="chat",
-            input_snippet=new_user_content[:500],
-            signals_json=signals_json_str,
-            recommended_action=crisis_assessment.recommended_action,
-            escalation_sent=False,
-            resolved=False,
-        ))
+        db.add(
+            CrisisAlert(
+                user_id=current_user.id,
+                severity=crisis_assessment.severity.value,
+                source="chat",
+                input_snippet=new_user_content[:500],
+                signals_json=signals_json_str,
+                recommended_action=crisis_assessment.recommended_action,
+                escalation_sent=False,
+                resolved=False,
+            )
+        )
         # Fire-and-forget escalation email for HIGH / CRITICAL
         if crisis_assessment.severity.value in ("high", "critical"):
             from app.services.crisis_escalation import fire_escalation_async
+
             fire_escalation_async(current_user, crisis_assessment)
 
     response_payload = {
@@ -238,12 +243,14 @@ async def chat(
         response_payload["crisis"] = crisis_data
 
     from fastapi.responses import JSONResponse
+
     return JSONResponse(content=response_payload)
 
 
 # ---------------------------------------------------------------------------
 # GET /api/chat/sessions — list user's sessions (most recent first)
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/sessions",
@@ -255,9 +262,7 @@ async def list_sessions(
     db: AsyncSession = Depends(get_db),
 ) -> list[ChatSessionResponse]:
     result = await db.execute(
-        select(ChatSession)
-        .where(ChatSession.user_id == current_user.id)
-        .order_by(ChatSession.updated_at.desc())
+        select(ChatSession).where(ChatSession.user_id == current_user.id).order_by(ChatSession.updated_at.desc())
     )
     sessions = result.scalars().all()
 
@@ -274,7 +279,9 @@ async def list_sessions(
             .limit(1)
         )
         preview_row = preview_result.scalar_one_or_none()
-        preview = preview_row[:_PREVIEW_MAX_LEN] + "…" if preview_row and len(preview_row) > _PREVIEW_MAX_LEN else preview_row
+        preview = (
+            preview_row[:_PREVIEW_MAX_LEN] + "…" if preview_row and len(preview_row) > _PREVIEW_MAX_LEN else preview_row
+        )
 
         out.append(
             ChatSessionResponse(
@@ -292,6 +299,7 @@ async def list_sessions(
 # ---------------------------------------------------------------------------
 # GET /api/chat/sessions/{session_id} — load full message history
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/sessions/{session_id}",
@@ -314,9 +322,7 @@ async def get_session(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
 
     msgs_result = await db.execute(
-        select(ChatMessageDB)
-        .where(ChatMessageDB.session_id == session_id)
-        .order_by(ChatMessageDB.created_at)
+        select(ChatMessageDB).where(ChatMessageDB.session_id == session_id).order_by(ChatMessageDB.created_at)
     )
     messages = msgs_result.scalars().all()
 
@@ -398,18 +404,14 @@ async def generate_session_summary(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
 
     # Check if summary already exists
-    existing_result = await db.execute(
-        select(SessionSummary).where(SessionSummary.session_id == session_id)
-    )
+    existing_result = await db.execute(select(SessionSummary).where(SessionSummary.session_id == session_id))
     existing = existing_result.scalar_one_or_none()
     if existing:
         return _summary_to_response(existing)
 
     # Need at least 2 messages (one user + one assistant) for a meaningful summary
     msgs_result = await db.execute(
-        select(ChatMessageDB)
-        .where(ChatMessageDB.session_id == session_id)
-        .order_by(ChatMessageDB.created_at)
+        select(ChatMessageDB).where(ChatMessageDB.session_id == session_id).order_by(ChatMessageDB.created_at)
     )
     messages = msgs_result.scalars().all()
 
@@ -481,6 +483,7 @@ async def generate_session_summary(
 # GET /api/chat/sessions/{session_id}/summary — retrieve existing summary
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "/sessions/{session_id}/summary",
     response_model=SessionSummaryResponse,
@@ -501,9 +504,7 @@ async def get_session_summary(
     if sess_result.scalar_one_or_none() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found.")
 
-    result = await db.execute(
-        select(SessionSummary).where(SessionSummary.session_id == session_id)
-    )
+    result = await db.execute(select(SessionSummary).where(SessionSummary.session_id == session_id))
     summary = result.scalar_one_or_none()
     if summary is None:
         raise HTTPException(
@@ -516,6 +517,7 @@ async def get_session_summary(
 # ---------------------------------------------------------------------------
 # Helpers: summary parsing and serialisation
 # ---------------------------------------------------------------------------
+
 
 def _parse_summary_json(raw: str) -> dict:
     """Best-effort parse of the LLM's JSON output."""
@@ -578,6 +580,7 @@ def _summary_to_response(obj: SessionSummary) -> SessionSummaryResponse:
 # DELETE /api/chat/sessions/{session_id} — delete a session + all its messages
 # ---------------------------------------------------------------------------
 
+
 @router.delete(
     "/sessions/{session_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -600,5 +603,3 @@ async def delete_session(
 
     await db.delete(session)
     # cascade deletes all ChatMessageDB rows via FK constraint
-
-

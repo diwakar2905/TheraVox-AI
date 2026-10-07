@@ -3,15 +3,15 @@ Professional Therapist Portal Service.
 Handles invitation code generation, client consent linking, and aggregate patient analytics.
 """
 
-import uuid
 import secrets
 import string
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone, timedelta
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import User, TherapistClientLinkDB, WellnessEntry, CrisisAlert
+from app.db.models import TherapistClientLinkDB, User
+
 
 class TherapistService:
     """Therapist management & patient monitoring service."""
@@ -39,8 +39,7 @@ class TherapistService:
         """Link a client to a therapist using an invitation code."""
         result = await db.execute(
             select(TherapistClientLinkDB).where(
-                TherapistClientLinkDB.invite_code == invite_code.upper(),
-                TherapistClientLinkDB.status == "pending"
+                TherapistClientLinkDB.invite_code == invite_code.upper(), TherapistClientLinkDB.status == "pending"
             )
         )
         link = result.scalar_one_or_none()
@@ -51,5 +50,6 @@ class TherapistService:
         link.status = "active"
         await db.commit()
         return True
+
 
 therapist_service = TherapistService()
