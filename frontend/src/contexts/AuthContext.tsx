@@ -33,6 +33,8 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
+  /** Current in-memory access token (null when logged out) */
+  token: string | null;
   isAuthenticated: boolean;
   /** True while the initial rehydration request is in-flight */
   isLoading: boolean;
@@ -98,14 +100,21 @@ async function callAuthEndpoint(
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [token, setTokenState] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Keep the api client's in-memory token and the context value in sync
+  const applyToken = useCallback((accessToken: string | null) => {
+    setToken(accessToken);
+    setTokenState(accessToken);
+  }, []);
 
   // ------------------------------------------------------------------
   // Internal: store the new access token in memory & kick off the timer
   // ------------------------------------------------------------------
   const _storeTokenAndScheduleRefresh = useCallback(
     (accessToken: string, userData: AuthUser) => {
-      setToken(accessToken);
+      applyToken(accessToken);
       setUser(userData);
       WellnessStorage.setUserId(userData.id);
 
@@ -115,17 +124,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshTimerRef.current = setInterval(async () => {
         try {
           const data = await callAuthEndpoint('/api/auth/refresh');
-          setToken(data.access_token);
+          applyToken(data.access_token);
           setUser(data.user);
         } catch {
           // Refresh failed — session ended
-          setToken(null);
+          applyToken(null);
           setUser(null);
           if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
         }
       }, SILENT_REFRESH_INTERVAL_MS);
     },
-    [],
+    [applyToken],
   );
 
   // ------------------------------------------------------------------
@@ -146,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) _storeTokenAndScheduleRefresh(data.access_token, data.user);
       } catch {
         // No valid session — stay logged out
-        if (!cancelled) setToken(null);
+        if (!cancelled) applyToken(null);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -155,7 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [_storeTokenAndScheduleRefresh]);
+  }, [_storeTokenAndScheduleRefresh, applyToken]);
 
   // ------------------------------------------------------------------
   // Cleanup timer on unmount
@@ -199,14 +208,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Best-effort logout — clear client state regardless
     }
-    setToken(null);
+    applyToken(null);
     setUser(null);
     WellnessStorage.setUserId(null);
     if (refreshTimerRef.current) {
       clearInterval(refreshTimerRef.current);
       refreshTimerRef.current = null;
     }
-  }, []);
+  }, [applyToken]);
 
   const updateUser = useCallback((partial: Partial<AuthUser>) => {
     setUser((prev) => (prev ? { ...prev, ...partial } : prev));
@@ -216,6 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        token,
         isAuthenticated: user !== null,
         isLoading,
         login,
@@ -233,6 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 // Hook
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');

@@ -39,9 +39,9 @@ export default function DataExportButton() {
       window.URL.revokeObjectURL(url);
       a.remove();
       setStatus('success');
-    } catch (err: any) {
+    } catch (err) {
       setStatus('error');
-      setErrorMessage(err.message || 'Error downloading data');
+      setErrorMessage((err instanceof Error && err.message) || 'Error downloading data');
     } finally {
       setLoading(false);
     }

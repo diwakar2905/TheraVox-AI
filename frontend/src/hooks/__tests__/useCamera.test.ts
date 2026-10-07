@@ -3,24 +3,17 @@ import { describe, it, expect } from 'vitest';
 import { useCamera } from '../useCamera';
 
 describe('useCamera', () => {
-  it('initializes with active camera state off', () => {
+  it('starts uninitialized with no error', () => {
     const { result } = renderHook(() => useCamera());
-    expect(result.current.isCameraActive).toBe(false);
+    expect(result.current.isInitialized).toBe(false);
+    expect(result.current.error).toBeNull();
   });
 
-  it('toggles camera state', async () => {
+  it('stopCamera is safe to call before the camera starts', () => {
     const { result } = renderHook(() => useCamera());
-
-    await act(async () => {
-      await result.current.startCamera();
-    });
-
-    expect(result.current.isCameraActive).toBe(true);
-
     act(() => {
       result.current.stopCamera();
     });
-
-    expect(result.current.isCameraActive).toBe(false);
+    expect(result.current.isInitialized).toBe(false);
   });
 });

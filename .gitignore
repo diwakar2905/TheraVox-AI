@@ -10,8 +10,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -54,3 +54,10 @@ frontend/node_modules/
 frontend/dist/
 
 .env
+# Vite dependency cache / test coverage
+.vite/
+frontend/coverage/
+
+# Local SQLite databases
+*.db
+*.sqlite3

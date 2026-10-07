@@ -39,3 +39,21 @@ itsdangerous>=2.2.0
 
 # Rate limiting
 slowapi>=0.1.9
+
+# Database (async Postgres; aiosqlite for local SQLite dev)
+sqlalchemy[asyncio]>=2.0
+asyncpg>=0.29.0
+aiosqlite>=0.20.0
+alembic>=1.13.0
+
+# Auth (password hashing, JWT) & validation
+bcrypt>=4.1.0
+python-jose[cryptography]>=3.3.0
+email-validator>=2.1.0
+
+# Email escalation
+aiosmtplib>=3.0.0
+
+# Misc
+python-dotenv>=1.0.0
+setuptools

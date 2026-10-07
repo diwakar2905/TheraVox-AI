@@ -1,14 +1,22 @@
-import { render, screen, act } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { render, screen, act, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '../../contexts/AuthContext';
+
+const USER = { id: 'u1', email: 'user@theravox.ai', full_name: 'TheraVox User', created_at: '2026-01-01T00:00:00Z' };
 
 const DummyLogin = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   return (
     <div>
       <h1>Login Page</h1>
-      <button onClick={() => login('token123', 'refresh123', { id: 'u1', email: 'user@theravox.ai', name: 'TheraVox User' })}>
+      <button
+        onClick={async () => {
+          await login(USER.email, 'Password123!');
+          navigate('/dashboard');
+        }}
+      >
         Log In Now
       </button>
     </div>
@@ -20,13 +28,25 @@ const DummyDashboard = () => {
   return (
     <div>
       <h1>User Dashboard</h1>
-      <p>Welcome, {user?.name}</p>
+      <p>Welcome, {user?.full_name}</p>
     </div>
   );
 };
 
 describe('User Flow Integration Test', () => {
-  it('navigates from login to dashboard upon successful login action', async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('navigates from login to dashboard upon successful login', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: 'no session' }), { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: 'tok', token_type: 'bearer', user: USER }), { status: 200 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
     render(
       <AuthProvider>
         <MemoryRouter initialEntries={['/login']}>
@@ -35,16 +55,16 @@ describe('User Flow Integration Test', () => {
             <Route path="/dashboard" element={<DummyDashboard />} />
           </Routes>
         </MemoryRouter>
-      </AuthProvider>
+      </AuthProvider>,
     );
 
     expect(screen.getByText('Login Page')).toBeInTheDocument();
 
-    act(() => {
+    await act(async () => {
       screen.getByText('Log In Now').click();
     });
 
-    // Check auth state is set
-    expect(screen.queryByText('Login Page')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('User Dashboard')).toBeInTheDocument());
+    expect(screen.getByText('Welcome, TheraVox User')).toBeInTheDocument();
   });
 });

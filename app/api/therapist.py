@@ -3,20 +3,22 @@ Professional Therapist Portal API Endpoints.
 """
 
 import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_db
-from app.db.models import User, TherapistClientLinkDB, WellnessEntry, CrisisAlert
+from app.db.models import CrisisAlert, TherapistClientLinkDB, User, WellnessEntry
 from app.services.therapist_service import therapist_service
 
 router = APIRouter(prefix="/therapist", tags=["therapist"])
 
+
 class LinkClientRequest(BaseModel):
     invite_code: str
+
 
 @router.post("/generate-invite")
 async def generate_invite(
@@ -31,6 +33,7 @@ async def generate_invite(
     code = await therapist_service.create_invite(current_user, db)
     return {"invite_code": code}
 
+
 @router.post("/link-client")
 async def link_client(
     payload: LinkClientRequest,
@@ -42,6 +45,7 @@ async def link_client(
     if not success:
         raise HTTPException(status_code=400, detail="Invalid or expired invitation code")
     return {"status": "linked"}
+
 
 @router.get("/clients")
 async def get_therapist_clients(
@@ -57,17 +61,20 @@ async def get_therapist_clients(
     rows = result.all()
     output = []
     for link, client in rows:
-        output.append({
-            "link_id": str(link.id),
-            "invite_code": link.invite_code,
-            "status": link.status,
-            "consent_shared": link.consent_shared,
-            "client_name": client.full_name if client else "Pending Invitation",
-            "client_email": client.email if client else None,
-            "client_id": str(client.id) if client else None,
-            "created_at": link.created_at.isoformat() if link.created_at else None,
-        })
+        output.append(
+            {
+                "link_id": str(link.id),
+                "invite_code": link.invite_code,
+                "status": link.status,
+                "consent_shared": link.consent_shared,
+                "client_name": client.full_name if client else "Pending Invitation",
+                "client_email": client.email if client else None,
+                "client_id": str(client.id) if client else None,
+                "created_at": link.created_at.isoformat() if link.created_at else None,
+            }
+        )
     return output
+
 
 @router.get("/client/{client_id}/analytics")
 async def get_client_analytics(
@@ -80,7 +87,7 @@ async def get_client_analytics(
         select(TherapistClientLinkDB).where(
             TherapistClientLinkDB.therapist_id == current_user.id,
             TherapistClientLinkDB.client_id == client_id,
-            TherapistClientLinkDB.consent_shared == True
+            TherapistClientLinkDB.consent_shared.is_(True),
         )
     )
     link = result.scalar_one_or_none()
@@ -103,10 +110,7 @@ async def get_client_analytics(
     ]
 
     res_crisis = await db.execute(
-        select(CrisisAlert)
-        .where(CrisisAlert.user_id == client_id)
-        .order_by(CrisisAlert.created_at.desc())
-        .limit(10)
+        select(CrisisAlert).where(CrisisAlert.user_id == client_id).order_by(CrisisAlert.created_at.desc()).limit(10)
     )
     crisis = [
         {

@@ -3,7 +3,16 @@
  */
 
 interface EventProperties {
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+interface PostHogClient {
+  capture: (event: string, properties?: EventProperties) => void;
+  identify: (userId: string, properties?: EventProperties) => void;
+}
+
+function getPostHog(): PostHogClient | undefined {
+  return (window as Window & { posthog?: PostHogClient }).posthog;
 }
 
 class PostHogAnalytics {
@@ -24,18 +33,21 @@ class PostHogAnalytics {
     }
     // Dynamic posthog-js load or local tracking
     this.isInitialized = true;
+    console.info(`[Analytics] PostHog configured (${this.apiHost}).`);
   }
 
   track(event: string, properties?: EventProperties) {
     console.info(`[Analytics Event] ${event}`, properties || '');
-    if (this.isInitialized && (window as any).posthog) {
-      (window as any).posthog.capture(event, properties);
+    const posthog = getPostHog();
+    if (this.isInitialized && posthog) {
+      posthog.capture(event, properties);
     }
   }
 
   identify(userId: string, userProperties?: EventProperties) {
-    if (this.isInitialized && (window as any).posthog) {
-      (window as any).posthog.identify(userId, userProperties);
+    const posthog = getPostHog();
+    if (this.isInitialized && posthog) {
+      posthog.identify(userId, userProperties);
     }
   }
 }

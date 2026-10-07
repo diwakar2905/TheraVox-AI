@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,15 +16,18 @@ class User(Base):
 
     __tablename__ = "users"
     __table_args__ = (
-        UniqueConstraint("oauth_provider", "oauth_id", name="uq_users_oauth"),
+        # Partial unique index (matches migration e1f2g3h4i5j6): one account per provider identity
+        Index(
+            "uq_users_oauth",
+            "oauth_provider",
+            "oauth_id",
+            unique=True,
+            postgresql_where=text("oauth_provider IS NOT NULL"),
+        ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    email: Mapped[str] = mapped_column(
-        String(320), unique=True, index=True, nullable=False
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     # Nullable for OAuth-only accounts (no password set)
     hashed_password: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -34,9 +37,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
     language_preference: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
@@ -48,9 +49,7 @@ class User(Base):
     chat_sessions: Mapped[list["ChatSession"]] = relationship(
         "ChatSession", back_populates="user", cascade="all, delete-orphan"
     )
-    crisis_alerts: Mapped[list["CrisisAlert"]] = relationship(
-        "CrisisAlert", back_populates="user"
-    )
+    crisis_alerts: Mapped[list["CrisisAlert"]] = relationship("CrisisAlert", back_populates="user")
     emergency_contacts: Mapped[list["EmergencyContactDB"]] = relationship(
         "EmergencyContactDB", back_populates="user", cascade="all, delete-orphan"
     )
@@ -67,32 +66,28 @@ class RefreshToken(Base):
 
     __tablename__ = "refresh_tokens"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    token_hash: Mapped[str] = mapped_column(
-        String(64), unique=True, index=True, nullable=False
-    )
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="refresh_tokens")
 
     @property
     def is_expired(self) -> bool:
-        return datetime.now(timezone.utc) >= self.expires_at
+        expires_at = self.expires_at
+        if expires_at.tzinfo is None:
+            # SQLite does not preserve tzinfo; stored values are UTC
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) >= expires_at
 
     @property
     def is_valid(self) -> bool:
@@ -107,9 +102,7 @@ class WellnessEntry(Base):
 
     __tablename__ = "wellness_entries"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -121,8 +114,8 @@ class WellnessEntry(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # Optional mood rating 0–10
     mood_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    # Optional free-form tags stored as a PostgreSQL text array
-    tags: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String), nullable=True)
+    # Optional free-form tags stored as a PostgreSQL text array (JSON on SQLite)
+    tags: Mapped[Optional[list[str]]] = mapped_column(ARRAY(String).with_variant(JSON(), "sqlite"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
@@ -139,9 +132,7 @@ class Feedback(Base):
 
     __tablename__ = "feedback"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # nullable — guests can't submit (routes are protected) but stored for posterity
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -168,9 +159,7 @@ class ChatSession(Base):
 
     __tablename__ = "chat_sessions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -184,9 +173,7 @@ class ChatSession(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="chat_sessions")
@@ -212,9 +199,7 @@ class SessionSummary(Base):
 
     __tablename__ = "session_summaries"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("chat_sessions.id", ondelete="CASCADE"),
@@ -227,9 +212,7 @@ class SessionSummary(Base):
     action_items: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
     mood_arc: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     model_used: Mapped[str] = mapped_column(String(100), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="summary")
@@ -243,9 +226,7 @@ class CrisisAlert(Base):
 
     __tablename__ = "crisis_alerts"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -253,9 +234,7 @@ class CrisisAlert(Base):
         index=True,
     )
     severity: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
-    source: Mapped[str] = mapped_column(
-        String(30), nullable=False, index=True
-    )  # 'text' | 'audio' | 'chat' | 'journal'
+    source: Mapped[str] = mapped_column(String(30), nullable=False, index=True)  # 'text' | 'audio' | 'chat' | 'journal'
     input_snippet: Mapped[str] = mapped_column(Text, nullable=False)
     signals_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
     recommended_action: Mapped[str] = mapped_column(Text, nullable=False)
@@ -277,9 +256,7 @@ class ChatMessageDB(Base):
 
     __tablename__ = "chat_messages"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("chat_sessions.id", ondelete="CASCADE"),
@@ -289,9 +266,7 @@ class ChatMessageDB(Base):
     # 'user' or 'assistant'
     role: Mapped[str] = mapped_column(String(10), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")
@@ -305,9 +280,7 @@ class EmergencyContactDB(Base):
 
     __tablename__ = "emergency_contacts"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -319,9 +292,7 @@ class EmergencyContactDB(Base):
     email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
     relationship_type: Mapped[str] = mapped_column(String(100), nullable=False)
     is_primary: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="emergency_contacts")
 
@@ -331,9 +302,7 @@ class PushSubscriptionDB(Base):
 
     __tablename__ = "push_subscriptions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -345,9 +314,7 @@ class PushSubscriptionDB(Base):
     auth: Mapped[str] = mapped_column(Text, nullable=False)
     preferred_time: Mapped[str] = mapped_column(String(10), default="20:00", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user: Mapped["User"] = relationship("User", back_populates="push_subscriptions")
 
@@ -357,9 +324,7 @@ class TherapistClientLinkDB(Base):
 
     __tablename__ = "therapist_client_links"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     therapist_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -375,9 +340,7 @@ class TherapistClientLinkDB(Base):
     invite_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)  # pending, active, revoked
     consent_shared: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class ProgramEnrollmentDB(Base):
@@ -385,9 +348,7 @@ class ProgramEnrollmentDB(Base):
 
     __tablename__ = "program_enrollments"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -399,9 +360,7 @@ class ProgramEnrollmentDB(Base):
     progress_percent: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     badge_earned: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class AuditLogDB(Base):
@@ -409,12 +368,8 @@ class AuditLogDB(Base):
 
     __tablename__ = "audit_logs"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True), nullable=True, index=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     resource: Mapped[str] = mapped_column(String(200), nullable=False)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
@@ -422,5 +377,3 @@ class AuditLogDB(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
-
-

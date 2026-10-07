@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { UserCheck, Key, ShieldAlert, TrendingUp, Users } from 'lucide-react';
+import { UserCheck, Key, TrendingUp, Users } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface ClientLink {
   link_id: string;
-  invite_code: str;
+  invite_code: string;
   status: string;
   consent_shared: boolean;
   client_name: string;

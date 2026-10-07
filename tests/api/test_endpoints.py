@@ -54,3 +54,31 @@ def test_feedback_submit_endpoint(client: AsyncClient, auth_headers: dict):
         response = await client.post("/api/feedback/", json=payload, headers=auth_headers)
         assert response.status_code in (200, 201, 307, 401)
     asyncio.run(_test())
+
+
+def test_journal_submit_uses_analyzer_result(client: AsyncClient, auth_headers: dict):
+    """Regression: the analyzer returns (emotion, confidence, scores); unpacking two values
+    made every journal entry fall back to neutral/0.5."""
+    async def _test():
+        response = await client.post(
+            "/api/journal/submit",
+            json={"text": "I felt wonderful today", "prompt": "How was your day?"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["emotion"] == "happy"
+        assert data["confidence"] == 0.95
+    asyncio.run(_test())
+
+
+def test_spa_fallback_serves_index_but_not_for_api(client: AsyncClient):
+    async def _test():
+        page = await client.get("/wellness")
+        assert page.status_code == 200
+        assert '<div id="root">' in page.text
+
+        missing_api = await client.get("/api/does-not-exist")
+        assert missing_api.status_code == 404
+        assert missing_api.json() == {"detail": "Not Found"}
+    asyncio.run(_test())

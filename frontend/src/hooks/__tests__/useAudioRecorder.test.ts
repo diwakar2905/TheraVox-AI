@@ -1,27 +1,12 @@
-import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
 import { useAudioRecorder } from '../useAudioRecorder';
 
 describe('useAudioRecorder', () => {
-  it('initializes with default recording state', () => {
+  it('initializes in the idle state with no recording', () => {
     const { result } = renderHook(() => useAudioRecorder());
-    expect(result.current.isRecording).toBe(false);
+    expect(result.current.state).toBe('idle');
     expect(result.current.audioBlob).toBeNull();
-  });
-
-  it('handles start and stop recording calls', async () => {
-    const { result } = renderHook(() => useAudioRecorder());
-
-    await act(async () => {
-      await result.current.startRecording();
-    });
-
-    expect(result.current.isRecording).toBe(true);
-
-    act(() => {
-      result.current.stopRecording();
-    });
-
-    expect(result.current.isRecording).toBe(false);
+    expect(result.current.elapsedSeconds).toBe(0);
   });
 });

@@ -120,7 +120,9 @@ export default function EmergencyContactManager() {
         </button>
       </form>
 
-      {contacts.length === 0 ? (
+      {loading ? (
+        <p className="text-xs text-stone-400 italic">Loading contacts…</p>
+      ) : contacts.length === 0 ? (
         <p className="text-xs text-stone-400 italic">No emergency contacts added yet.</p>
       ) : (
         <div className="space-y-2">

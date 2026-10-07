@@ -17,7 +17,11 @@ os.environ.setdefault("OPENCV_THREADS", "2")
 os.environ.setdefault("TORCH_NUM_THREADS", "2")
 os.environ.setdefault("OMP_NUM_THREADS", "2")
 os.environ.setdefault("MKL_NUM_THREADS", "2")
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 try:
     from slowapi import _rate_limit_exceeded_handler
@@ -26,6 +30,7 @@ except ImportError:
     _rate_limit_exceeded_handler = None
     class RateLimitExceeded(Exception):
         pass
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.core.logging_config import setup_logging
@@ -80,6 +85,31 @@ logger.info("📡 Loading API routes...")
 from app.api.router import api_router
 app.include_router(api_router)
 logger.info("✓ API routes loaded")
+
+# Serve the built React SPA (frontend `npm run build` outputs into static/).
+# Implemented as a 404 handler rather than a catch-all route so it never shadows
+# API routes, method checks (405) or trailing-slash redirects.
+_static_root = Path(settings.get("static_dir", "static")).resolve()
+_spa_index = _static_root / "index.html"
+_NON_SPA_PREFIXES = ("/api/", "/static/", "/docs", "/redoc", "/openapi.json")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def spa_fallback(request: Request, exc: StarletteHTTPException):
+    """Serve static/ files and index.html for client-side routes on unmatched GETs."""
+    path = request.url.path
+    if (
+        exc.status_code == 404
+        and request.method in ("GET", "HEAD")
+        and not path.startswith(_NON_SPA_PREFIXES)
+        and _spa_index.is_file()
+    ):
+        candidate = (_static_root / path.lstrip("/")).resolve()
+        if path != "/" and candidate.is_file() and candidate.is_relative_to(_static_root):
+            return FileResponse(candidate)
+        return FileResponse(_spa_index)
+    return await http_exception_handler(request, exc)
+
 
 logger.info("✨ TheraVox AI ready! Models will load on first use.")
 

@@ -432,6 +432,7 @@ export function CrisisAlertModal({ crisis, onClose }: CrisisAlertModalProps) {
 // Hook: useCrisisCheck — auto-determine which UI to show
 // ---------------------------------------------------------------------------
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useCrisisCheck() {
   const [crisisData, setCrisisData] = useState<CrisisData | null>(null);
   const [showModal, setShowModal] = useState(false);

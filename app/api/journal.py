@@ -7,6 +7,7 @@ POST /api/journal/submit  — Submit a journal entry; returns emotion analysis +
 
 import asyncio
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_current_user, get_text_analyzer
@@ -19,7 +20,7 @@ from app.models.schemas import (
     JournalSubmitResponse,
 )
 from app.services import TextAnalyzerService
-from app.utils.emotion_utils import get_emotion_emoji, get_emotion_description
+from app.utils.emotion_utils import get_emotion_description, get_emotion_emoji
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,7 @@ _FALLBACK_PROMPTS: dict[str, str] = {
 }
 
 _DEFAULT_PROMPT = (
-    "What's on your mind right now? Write whatever feels true — "
-    "there's no right or wrong way to journal."
+    "What's on your mind right now? Write whatever feels true — " "there's no right or wrong way to journal."
 )
 
 # ---------------------------------------------------------------------------
@@ -82,6 +82,7 @@ def _get_groq_client():
         )
     try:
         from groq import Groq  # lazy import
+
         return Groq(api_key=api_key), settings.get("groq_model", "llama-3.1-8b-instant")
     except ImportError:
         raise HTTPException(
@@ -93,6 +94,7 @@ def _get_groq_client():
 # ---------------------------------------------------------------------------
 # POST /api/journal/prompt
 # ---------------------------------------------------------------------------
+
 
 @router.post(
     "/prompt",
@@ -152,6 +154,7 @@ async def get_journal_prompt(
 # POST /api/journal/submit
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/submit",
     response_model=JournalSubmitResponse,
@@ -167,9 +170,9 @@ async def submit_journal(
     The reflection gracefully degrades to a template if Groq is unavailable.
     """
     # 1. Run emotion analysis (offloaded to thread pool)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     try:
-        emotion, confidence = await loop.run_in_executor(None, analyzer.analyze, body.text)
+        emotion, confidence, _scores = await loop.run_in_executor(None, analyzer.analyze, body.text)
     except Exception as exc:
         logger.error("Text analysis error in journal submit: %s", exc)
         emotion, confidence = "neutral", 0.5
@@ -266,8 +269,11 @@ def _template_reflection(emotion: str, confidence: float) -> str:
             "Well done for showing up for your journaling practice today."
         ),
     }
-    return templates.get(emotion, (
-        "Thank you for taking time to check in with yourself today. "
-        "Journaling is a powerful act of self-care, and your words reflect real honesty. "
-        "Keep showing up for yourself — it matters more than you know."
-    ))
+    return templates.get(
+        emotion,
+        (
+            "Thank you for taking time to check in with yourself today. "
+            "Journaling is a powerful act of self-care, and your words reflect real honesty. "
+            "Keep showing up for yourself — it matters more than you know."
+        ),
+    )
